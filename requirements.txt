@@ -1,0 +1,10 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pydantic-settings>=2.3
+celery[redis]>=5.4
+pdf2docx>=0.5.8
+pypdfium2>=4.30
+openpyxl>=3.1
+mammoth>=1.8
+boto3>=1.34

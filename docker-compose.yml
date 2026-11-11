@@ -1,0 +1,65 @@
+services:
+  hamifs-convert:
+    build: .
+    container_name: hamifs-convert
+    ports:
+      - "8100:8100"
+    environment:
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: hamifs-convert
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - convert-data:/app/data
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: hamifs-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: hamifs-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  # 可选：单独启动 Celery worker（默认 FastAPI 进程内已能执行任务）
+  # docker compose up -d hamifs-convert-worker
+  hamifs-convert-worker:
+    profiles: ["worker"]
+    build: .
+    container_name: hamifs-convert-worker
+    command: celery -A app.tasks.celery_app:celery worker -l info -c 2
+    environment:
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: hamifs-convert
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+
+volumes:
+  convert-data:
+  minio-data:
