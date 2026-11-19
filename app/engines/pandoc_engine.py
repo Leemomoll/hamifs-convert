@@ -4,28 +4,42 @@ import subprocess
 from pathlib import Path
 
 from app.config import get_settings
-
-# md -> pdf 依赖 latex 引擎，容器内未装时给出清晰报错
-_PDF_NOTE = "pandoc 生成 PDF 需要 LaTeX（或改用 md -> html -> pdf 链路）"
+from app.engines import libreoffice
 
 
 def convert(src: Path, target_format: str, out_dir: Path) -> Path:
     if shutil.which("pandoc") is None:
         raise RuntimeError("未找到 pandoc 可执行文件，请安装（Docker 镜像内已内置）")
     settings = get_settings()
+
+    # Markdown/HTML/txt -> pdf：不依赖 1GB 级的 LaTeX，走两段链路
+    # pandoc 先转 docx（保留样式），LibreOffice 再 docx -> pdf（noto-cjk 字体保证中文正常）
+    if target_format == "pdf":
+        return _pdf_via_docx(src, out_dir, settings)
+
     out = out_dir / f"{src.stem}.{target_format}"
     cmd = ["pandoc", str(src), "-o", str(out)]
-    if target_format == "pdf":
-        # 优先用 wkhtmltopdf（若镜像内存在），否则交给 pandoc 默认 latex
-        if shutil.which("wkhtmltopdf"):
-            cmd += ["--pdf-engine", "wkhtmltopdf"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=settings.TASK_TIMEOUT_SECONDS)
     except FileNotFoundError:
         raise RuntimeError("pandoc 执行失败：可执行文件不可用")
     if result.returncode != 0 or not out.exists():
         msg = result.stderr or result.stdout or "no output"
-        if target_format == "pdf":
-            msg += f"（提示：{_PDF_NOTE}）"
         raise RuntimeError(f"Pandoc 转换失败: {msg}")
     return out
+
+
+def _pdf_via_docx(src: Path, out_dir: Path, settings) -> Path:
+    tmp_docx = out_dir / f"{src.stem}.docx"
+    try:
+        result = subprocess.run(
+            ["pandoc", str(src), "-o", str(tmp_docx)],
+            capture_output=True, text=True, timeout=settings.TASK_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0 or not tmp_docx.exists():
+            msg = result.stderr or result.stdout or "no output"
+            raise RuntimeError(f"Pandoc 转换失败: {msg}")
+        return libreoffice.convert(tmp_docx, "pdf", out_dir)
+    finally:
+        # 中间产物清理，避免与正式结果混淆
+        tmp_docx.unlink(missing_ok=True)

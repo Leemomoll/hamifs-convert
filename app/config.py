@@ -29,6 +29,24 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = ""
     CELERY_RESULT_BACKEND: str = ""
 
+    # ── AI / RAG ─────────────────────────────────────────────
+    # LLM（OpenAI 兼容）：演示期 DeepSeek；自建换 vLLM/Ollama 只改这三个
+    LLM_BASE_URL: str = "https://api.deepseek.com/v1"
+    LLM_API_KEY: str = ""
+    LLM_MODEL: str = "deepseek-chat"
+    LLM_TEMPERATURE: float = 0.3
+    # Embedding（OpenAI 兼容）：演示期硅基流动 bge-m3；本地化换 Ollama 同样三个变量
+    # ⚠️ DeepSeek 无 embedding 接口，embedding 必须另配；问题与文档必须同模型，换模型需全量重建
+    EMBEDDING_BASE_URL: str = "https://api.siliconflow.cn/v1"
+    EMBEDDING_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "BAAI/bge-m3"
+    # 向量库：Chroma 本地持久化目录（换 Milvus 只改 vectorstore.py 实现）
+    CHROMA_DIR: str = "./data/chroma"
+    # 切块参数（RAG 效果核心，真实语料上迭代调优）
+    CHUNK_SIZE: int = 600
+    CHUNK_OVERLAP: int = 100
+    TOP_K: int = 5
+
 
 @lru_cache
 def get_settings() -> Settings:

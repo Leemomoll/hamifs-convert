@@ -32,6 +32,22 @@
 | GET | `/convert/tasks/{id}` | 状态与进度（前端轮询） |
 | GET | `/convert/download/{id}` | 下载结果（s3 时 302 预签名 URL） |
 
+## AI / RAG 模块（app/ai/）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/ai/chat` | 提问，SSE 流式：`delta` 增量 → `citations` 引用 → `done` |
+| POST | `/ai/index/{documentId}` | 文档向量化入库（Java 上传成功后转发 multipart） |
+| DELETE | `/ai/index/{documentId}` | 删除文档的全部向量（文档删除时联动） |
+| GET | `/ai/index/status` | 索引状态（块数/文档数/key 配置情况） |
+| GET | `/ai/health` | AI 模块健康检查 |
+
+模块结构：`extractor`（复用引擎提取文本）→ `chunker`（切块）→ `embedder`（向量化）→ `vectorstore`（Chroma）→ `llm`（流式生成）。
+演示期配置：LLM 用 DeepSeek key，Embedding 用硅流动 bge-m3（DeepSeek 无 embedding 接口）；本地化改 `.env` 中 `LLM_BASE_URL/EMBEDDING_BASE_URL` 等变量即可，代码不动。
+状态：骨架完成；Java 网关与前端对接待做（见开发文档 P0/P2）。
+
+任务状态机：`PENDING → RUNNING(进度%) → SUCCESS / FAILED`，失败自动重试 1 次。
+
 任务状态机：`PENDING → RUNNING(进度%) → SUCCESS / FAILED`，失败自动重试 1 次。
 
 ## 本地开发（Windows）
