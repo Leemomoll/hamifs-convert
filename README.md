@@ -44,9 +44,7 @@
 
 模块结构：`extractor`（复用引擎提取文本）→ `chunker`（切块）→ `embedder`（向量化）→ `vectorstore`（Chroma）→ `llm`（流式生成）。
 演示期配置：LLM 用 DeepSeek key，Embedding 用硅流动 bge-m3（DeepSeek 无 embedding 接口）；本地化改 `.env` 中 `LLM_BASE_URL/EMBEDDING_BASE_URL` 等变量即可，代码不动。
-状态：骨架完成；Java 网关与前端对接待做（见开发文档 P0/P2）。
-
-任务状态机：`PENDING → RUNNING(进度%) → SUCCESS / FAILED`，失败自动重试 1 次。
+状态：已完成，Java 网关（AiController 透传）与前端（SSE + 会话历史）均已对接。
 
 任务状态机：`PENDING → RUNNING(进度%) → SUCCESS / FAILED`，失败自动重试 1 次。
 

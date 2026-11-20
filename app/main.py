@@ -9,10 +9,10 @@ settings = get_settings()
 
 app = FastAPI(title=settings.APP_NAME, version="0.1.0")
 
-# 开发期允许前端本地跨域；生产环境收敛到前端域名
+# 收敛跨域：默认只放开前端开发服务器，可用 CORS_ORIGINS 环境变量覆盖（逗号分隔）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -6,6 +6,7 @@ GET    /convert/tasks/{id}     单个任务状态与进度（前端轮询）
 GET    /convert/download/{id}  下载转换结果（s3 时 302 到预签名 URL）
 """
 import posixpath
+import threading
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
@@ -18,6 +19,14 @@ from app.storage.factory import get_storage
 from app.tasks.runner import run_task
 
 router = APIRouter(prefix="/convert")
+
+# 转换为 CPU/IO 重操作（LibreOffice 并发会互相干扰），用信号量限制同时执行数
+_task_slots = threading.BoundedSemaphore(get_settings().MAX_CONCURRENCY)
+
+
+def _run_limited(task_id: str) -> None:
+    with _task_slots:
+        run_task(task_id)
 
 
 def _to_out(task) -> TaskOut:
@@ -50,22 +59,27 @@ async def create_task(
     if resolve_engine(source_format, target) is None:
         raise HTTPException(400, f"不支持的转换方向: {source_format} -> {target}，支持: {sorted(supported_targets(source_format))}")
 
-    storage = get_storage()
-    source_key = storage.save_upload(file, f"uploads/{source_name}")
+    # 直连本服务时也执行大小限制（Java 网关侧的 multipart 上限管不到这里）
+    if file.size and file.size > settings.MAX_UPLOAD_MB * 1024 * 1024:
+        raise HTTPException(413, f"文件超过 {settings.MAX_UPLOAD_MB}MB 上限")
 
+    # 先建任务再落文件：上传 key 带 taskId，同名文件互不覆盖
     task = store.create(
-        source_key=source_key,
+        source_key="",
         source_name=source_name,
         source_format=source_format,
         target_format=target,
     )
+    storage = get_storage()
+    source_key = storage.save_upload(file, f"uploads/{task.id}/{source_name}")
+    task.source_key = source_key
 
     if settings.CELERY_BROKER_URL:
         from app.tasks.celery_app import celery
         celery.send_task("app.tasks.convert_tasks.convert", args=[task.id])
     else:
-        # 开发期：进程内后台线程执行，无需 Redis
-        background.add_task(run_task, task.id)
+        # 开发期：进程内后台线程执行（限并发），无需 Redis
+        background.add_task(_run_limited, task.id)
 
     return {"taskId": task.id}
 

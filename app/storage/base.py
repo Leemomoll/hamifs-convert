@@ -1,11 +1,23 @@
 """存储后端抽象：本地目录（开发期）或 S3 协议（MinIO / 云 OSS）。"""
+import re
 import shutil
 import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import UploadFile
+
+
+def _content_disposition(filename: str) -> str:
+    """生成安全的 Content-Disposition：去引号/换行防响应头注入，非 ASCII 走 RFC 5987。"""
+    safe = re.sub(r'[\r\n"\\]', "", filename).strip() or "result"
+    try:
+        safe.encode("ascii")
+        return f'attachment; filename="{safe}"'
+    except UnicodeEncodeError:
+        return f"attachment; filename*=UTF-8''{quote(safe)}"
 
 
 class Storage(ABC):
@@ -107,7 +119,7 @@ class S3Storage(Storage):
             Params={
                 "Bucket": self.bucket,
                 "Key": key,
-                "ResponseContentDisposition": f'attachment; filename="{filename}"',
+                "ResponseContentDisposition": _content_disposition(filename),
             },
             ExpiresIn=get_settings().PRESIGN_EXPIRES_SECONDS,
         )

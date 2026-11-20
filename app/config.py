@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8100
 
+    # CORS：生产经 nginx 同源访问不会触发；这里只放开前端开发服务器
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # 任务限制（对齐技术方案：单任务超时 120s，上传 <=100MB）
     TASK_TIMEOUT_SECONDS: int = 120
     MAX_UPLOAD_MB: int = 100
