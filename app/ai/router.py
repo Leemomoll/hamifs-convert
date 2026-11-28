@@ -3,9 +3,34 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.ai import service
-from app.ai.schemas import ChatRequest, DeleteResult, IndexResult, IndexStatus
+from app.ai.schemas import (
+    ChatRequest,
+    DeleteResult,
+    IndexResult,
+    IndexStatus,
+    SearchHit,
+    SearchRequest,
+    TagSuggestResult,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+@router.post("/search", summary="语义搜索（向量检索，不生成回答）", response_model=list[SearchHit])
+async def semantic_search(req: SearchRequest):
+    try:
+        return service.search(req.query, req.top_k)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+
+@router.post("/tags/{document_id}", summary="上传自动打标签（提取文本后 LLM 生成）", response_model=TagSuggestResult)
+async def suggest_tags(document_id: int, file: UploadFile = File(...)):
+    data = await file.read()
+    try:
+        return await service.suggest_tags(document_id, file.filename or "unnamed", data)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
 
 @router.post("/chat", summary="提问（SSE 流式返回回答 + 引用出处）")

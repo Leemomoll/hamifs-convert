@@ -1,5 +1,6 @@
 # 系统依赖：libreoffice（Office 互转/转 PDF）、pandoc（通用互转）、中文字体（否则中文变方框）
-FROM python:3.11-slim
+# Docker Hub 国内直连不通，基础镜像走 daocloud 镜像源（与 hamifs-front 同约定）
+FROM docker.m.daocloud.io/library/python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \

@@ -30,6 +30,29 @@ class DeleteResult(BaseModel):
     deleted: int = Field(description="删除的向量条数")
 
 
+class SearchRequest(BaseModel):
+    """语义搜索请求（全局搜索的"语义兜底"来源）。"""
+    query: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=6, ge=1, le=20)
+
+
+class SearchHit(BaseModel):
+    """语义搜索命中：documentId 可关联 doc_document 跳转预览。"""
+    documentId: int | None = None
+    documentName: str
+    chunkIndex: int = 0
+    snippet: str
+    score: float = Field(description="相似度得分（1-距离，越大越相关）")
+
+
+class TagSuggestResult(BaseModel):
+    """上传自动打标签结果。"""
+    documentId: int
+    fileName: str
+    tags: list[str] = []
+    message: str = "ok"
+
+
 class IndexStatus(BaseModel):
     embeddingModel: str
     collection: str

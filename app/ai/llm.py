@@ -37,6 +37,20 @@ def build_context_prompt(question: str, contexts: list[dict]) -> list[dict]:
     ]
 
 
+async def chat_once(messages: list[dict], max_tokens: int = 500) -> str:
+    """非流式单轮生成（自动打标签等结构化小任务用）。"""
+    s = get_settings()
+    client = _client()
+    resp = await client.chat.completions.create(
+        model=s.LLM_MODEL,
+        messages=messages,  # type: ignore[arg-type]
+        temperature=0.2,
+        max_tokens=max_tokens,
+        stream=False,
+    )
+    return resp.choices[0].message.content or ""
+
+
 async def stream_chat(messages: list[dict]) -> AsyncIterator[str]:
     """流式生成回答，逐段 yield 文本增量。"""
     s = get_settings()

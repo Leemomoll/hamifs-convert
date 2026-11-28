@@ -31,6 +31,70 @@ def delete_document(document_id: int) -> int:
     return vectorstore.delete_document(document_id)
 
 
+def search(query: str, top_k: int = 6) -> list[dict]:
+    """语义搜索：向量检索，返回命中块（不调 LLM，纯检索）。"""
+    text = query.strip()
+    if not text:
+        return []
+    hits = vectorstore.query(embedder.embed_query(text), top_k)
+    return [
+        {
+            "documentId": h["documentId"],
+            "documentName": h["documentName"],
+            "chunkIndex": h["chunkIndex"],
+            "snippet": h["text"][:200],
+            "score": round(1.0 - h["distance"], 4),
+        }
+        for h in hits
+    ]
+
+
+_TAG_PROMPT = (
+    "你是文档标签生成器。根据下面的文档片段，提炼 3~5 个最能概括主题的简短标签。"
+    "要求：每个标签不超过 10 个字，中文优先；只输出 JSON 数组，不要任何解释，"
+    '形如 ["标签1","标签2"]。\n\n文档片段：\n{content}'
+)
+
+
+def _parse_tags(raw: str) -> list[str]:
+    """容忍 LLM 输出的代码围栏 / 前后杂文，提取 JSON 数组。"""
+    import json
+    import re
+
+    text = (raw or "").strip()
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if match:
+        text = match.group(0)
+    tags = json.loads(text)
+    result: list[str] = []
+    for t in tags if isinstance(tags, list) else []:
+        if isinstance(t, str) and t.strip():
+            result.append(t.strip()[:20])
+    # 去重保序，最多 5 个
+    seen: set[str] = set()
+    unique = [t for t in result if not (t in seen or seen.add(t))]
+    return unique[:5]
+
+
+async def suggest_tags(document_id: int, file_name: str, data: bytes, max_tags: int = 5) -> dict:
+    """上传自动打标签：提取文本 -> LLM 生成标签。失败抛异常，由调用方兜底。"""
+    text = extractor.extract_text(data, file_name).strip()
+    if not text:
+        return {"documentId": document_id, "fileName": file_name, "tags": [],
+                "message": "未提取到文本，无法生成标签"}
+    messages = [
+        {"role": "system", "content": "你只输出 JSON 数组，不输出任何其他内容。"},
+        {"role": "user", "content": _TAG_PROMPT.format(content=text[:6000])},
+    ]
+    raw = await llm.chat_once(messages)
+    return {
+        "documentId": document_id,
+        "fileName": file_name,
+        "tags": _parse_tags(raw),
+        "message": "ok",
+    }
+
+
 def index_status() -> dict:
     s = get_settings()
     chunks, docs = vectorstore.count()
